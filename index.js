@@ -23,7 +23,7 @@ async function testKrypto() {
     let serverPrivkeyStorage = convertJwkToJson(serverExportKey)
 
     // CLIENT SIDE: has no idea of the server priv key, has only server pubkey as JWK
-    let review = "test vote"
+    let review = "another failed mutation"
     let jwkObj = convertJsonToJwk(serverPubkeyStorage)
     let votingPubkey = await importEcdhJsonWebKey(jwkObj)
 
@@ -32,7 +32,8 @@ async function testKrypto() {
 
     let iv = generateAESIV().toString()
     let encodedMsg = getMessageEncoding(review)
-    let ciphertext = await encrypt(clientSharedKey, iv, encodedMsg)
+    let cipherArrBuffer = await encrypt(clientSharedKey, iv, encodedMsg)
+    let ciphertext = new Uint8Array(cipherArrBuffer, 0, cipherArrBuffer.byteLength).toString()
     let clientExportKey = await exportJsonWebKey(ephemeralKeyPair.publicKey)
     let clientStorage = convertJwkToJson(clientExportKey)
 
@@ -41,7 +42,16 @@ async function testKrypto() {
     let clientPubKey = await importEcdhJsonWebKey(jwkObj)
     let serverPrivKey = await importEcdhJsonWebKey(convertJsonToJwk(serverPrivkeyStorage), ["deriveKey"])
     let serverSharedKey = await deriveSecretKey(serverPrivKey, clientPubKey)
-    let decryptedMsg = await decrypt(serverSharedKey, ciphertext, iv)
+    let decryptedMsg = await decrypt(serverSharedKey, strToUInt8Array(ciphertext), iv)
 }
 
 testKrypto()
+
+function strToUInt8Array(strArray) {
+    let parts = strArray.split(',')
+    let uint8arr = new Uint8Array(parts.length)
+    for (let i = 0; i < parts.length; i++) {
+        uint8arr[i] = parseInt(parts[i])
+    }
+    return uint8arr
+}
