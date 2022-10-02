@@ -8,7 +8,8 @@ const {
     getMessageEncoding, 
     encrypt, 
     decrypt, 
-    generateAESIV
+    strToUInt8Array,
+    generateCounter
 } = require("./crypto")
 
 async function testKrypto() {
@@ -23,35 +24,29 @@ async function testKrypto() {
     let serverPrivkeyStorage = convertJwkToJson(serverExportKey)
 
     // CLIENT SIDE: has no idea of the server priv key, has only server pubkey as JWK
-    let review = "another failed mutation"
+    let review = "resist"
     let jwkObj = convertJsonToJwk(serverPubkeyStorage)
     let votingPubkey = await importEcdhJsonWebKey(jwkObj)
 
     let ephemeralKeyPair = await genEcdhKey()
     let clientSharedKey = await deriveSecretKey(ephemeralKeyPair.privateKey, votingPubkey)
 
-    let iv = generateAESIV().toString()
+    // let iv = generateAESIV()
+    // let ivStorage = iv.toString();
+    let counter = generateCounter()
+    let counterStorage = counter.toString()
     let encodedMsg = getMessageEncoding(review)
-    let cipherArrBuffer = await encrypt(clientSharedKey, iv, encodedMsg)
+    let cipherArrBuffer = await encrypt(clientSharedKey, encodedMsg, counter)
     let ciphertext = new Uint8Array(cipherArrBuffer, 0, cipherArrBuffer.byteLength).toString()
     let clientExportKey = await exportJsonWebKey(ephemeralKeyPair.publicKey)
     let clientStorage = convertJwkToJson(clientExportKey)
-
+    console.log(new TextEncoder().encode(ciphertext).length)
     // WEB-APP SIDE: has the encrypted msg, JWK of the sender and the IV to the AES-GCM encryption
     jwkObj = convertJsonToJwk(clientStorage)
     let clientPubKey = await importEcdhJsonWebKey(jwkObj)
     let serverPrivKey = await importEcdhJsonWebKey(convertJsonToJwk(serverPrivkeyStorage), ["deriveKey"])
     let serverSharedKey = await deriveSecretKey(serverPrivKey, clientPubKey)
-    let decryptedMsg = await decrypt(serverSharedKey, strToUInt8Array(ciphertext), iv)
+    let decryptedMsg = await decrypt(clientSharedKey, strToUInt8Array(ciphertext), strToUInt8Array(counterStorage))
 }
 
 testKrypto()
-
-function strToUInt8Array(strArray) {
-    let parts = strArray.split(',')
-    let uint8arr = new Uint8Array(parts.length)
-    for (let i = 0; i < parts.length; i++) {
-        uint8arr[i] = parseInt(parts[i])
-    }
-    return uint8arr
-}

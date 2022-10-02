@@ -13,7 +13,7 @@ async function genEcdhKey() {
     );
 }
 
- async function importEcdhJsonWebKey(jwkObj, keyUsages = []) {
+async function importEcdhJsonWebKey(jwkObj, keyUsages = []) {
     return await subtle.importKey(
         "jwk", //can be "jwk" (public or private), "raw" (public only), "spki" (public only), or "pkcs8" (private only)
         jwkObj,
@@ -34,7 +34,7 @@ async function deriveSecretKey(privateKey, publicKey) {
         },
         privateKey,
         {
-            name: "AES-GCM",
+            name: "AES-CTR",
             length: 256
         },
         false,
@@ -63,24 +63,30 @@ function generateAESIV() {
     return crypto.getRandomValues(new Uint8Array(12));
 }
 
-async function encrypt(secretKey, iv, encoded) {
+function generateCounter() {
+    return crypto.getRandomValues(new Uint8Array(16))
+}
+
+async function encrypt(secretKey, encoded, counter) {
 
     return await subtle.encrypt(
         {
-            name: "AES-GCM",
-            iv: iv
+            name: "AES-CTR",
+            counter,
+            length: 128
         },
         secretKey,
         encoded
     );
 }
 
-async function decrypt(secretKey, ciphertext, iv) {
+async function decrypt(secretKey, ciphertext, counter) {
     try {
         let decrypted = await subtle.decrypt(
             {
-                name: "AES-GCM",
-                iv: iv
+                name: "AES-CTR",
+                counter,
+                length: 128
             },
             secretKey,
             ciphertext
@@ -91,7 +97,16 @@ async function decrypt(secretKey, ciphertext, iv) {
     } catch (e) {
         console.error(e)
         return `${e}`
-    } 
+    }
+}
+
+function strToUInt8Array(strArray) {
+    let parts = strArray.split(',')
+    let uint8arr = new Uint8Array(parts.length)
+    for (let i = 0; i < parts.length; i++) {
+        uint8arr[i] = parseInt(parts[i])
+    }
+    return uint8arr
 }
 
 module.exports = {
@@ -103,6 +118,8 @@ module.exports = {
     convertJsonToJwk,
     getMessageEncoding,
     generateAESIV,
+    generateCounter,
     encrypt,
-    decrypt
+    decrypt,
+    strToUInt8Array
 }
